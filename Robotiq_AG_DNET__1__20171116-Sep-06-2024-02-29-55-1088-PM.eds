@@ -1,0 +1,65 @@
+$ NETX-DNS Electronic Data Sheet
+$ Version 1.1
+$ 12/11/08
+
+$ File Description Section
+[File]
+        DescText    = "NIC 50-DNS EDS FILE";
+        CreateDate  = 12-11-2008;
+        CreateTime  = 12:00:00;
+        ModDate     = 12-11-2008;
+        ModTime     = 12:00:00;
+        Revision    = 1.1;
+
+$ Device Description Section
+[Device]
+        VendCode    = 283;
+        VendName    = "Hilscher GmbH ";
+        ProdType    = 12;
+        ProdTypeStr = "Communication Adapter";
+        ProdCode    = 35;
+        MajRev      = 1;
+        MinRev      = 1;
+        ProdName    = "AG-DNS";
+        Catalog     = "0";
+        Icon        = "NIC-50.ICO";
+
+$ I/O Characteristics Section
+[IO_Info]
+
+        Default    = 0x0001;                         $ poll as default
+
+        PollInfo   = 0x000F,                         $ OK to Combine w/Poll/Strobe/COS/Cyclic
+                     1,                              $ Default Input  = Input1
+                     1;                              $ Default Output = Output1
+                                      
+       	StrobeInfo = 0x000F,                         $ OK to Combine w/Poll/Strobe/COS/Cyclic
+       	             1,                              $ Default Input  = Input1
+       	             1;                              $ Default Output = Output1
+       	             
+       	COSInfo    = 0x0007,                         $ OK to Combine w/Poll/Strobe/COS
+       	             1,                              $ Default Input  = Input1
+       	             1;                              $ Default Output = Output1
+       	             
+        CyclicInfo = 0x000B,                         $ OK to Combine w/Poll/Strobe/Cyclic
+                     1,                              $ Default Input  = Input1
+                     1;                              $ Default Output = Output1
+
+        Input1=
+               16,                                   $ 40 byte
+               0,                                    $ 64 bits are significant
+               0x000F,                               $ Poll/Strobe/COS/Cyclic Connection
+               "Bytes In",                           $ Name
+               6, "20 04 24 01 30 03",               $ Assembly Object Instance 1
+               "";                                   $ Help
+
+
+        Output1=
+               16,                                   $ 40 byte                             
+               0,                                    $ 64 bits are significant            
+               0x000F,                               $ Poll/Strobe/COS/Cyclic Connection  
+               "Bytes Out",                          $ Name                               
+               6, "20 04 24 02 30 03",               $ Assembly Object Instance 2
+               "";                                   $ Help
+
+$ End of NIC 50-DNS EDS File

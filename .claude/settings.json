@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -c \"import pymodbus; print\\(pymodbus.__version__\\)\")",
+      "Bash(python -c \"from pymodbus.client import ModbusSerialClient; import inspect; print\\(inspect.signature\\(ModbusSerialClient.__init__\\)\\)\")",
+      "Bash(python -c \"from pymodbus.client import ModbusSerialClient; import inspect; print\\('write_registers:', inspect.signature\\(ModbusSerialClient.write_registers\\)\\); print\\('read_holding_registers:', inspect.signature\\(ModbusSerialClient.read_holding_registers\\)\\); print\\('read_input_registers:', inspect.signature\\(ModbusSerialClient.read_input_registers\\)\\)\")",
+      "Read(//d/JunjieWang/Scientific_research/Task-urdf/**)",
+      "Bash(python -c ' *)"
+    ]
+  }
+}

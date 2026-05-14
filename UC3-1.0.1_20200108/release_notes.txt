@@ -1,0 +1,13 @@
+3-Finger Adaptive Robot Gripper URCap
+
+This file describes the changes made to the software.
+
+----------------------------
+Release 1.0.1 - 2019/11/11
+----------------------------
+[BUG FIX] Program does not start when using a 3F program node
+
+----------------------------
+Release 1.0.0 - 2018/01/31
+----------------------------
+Initial release. This release has been tested on controllers: CB3.1 (PolyScope version 3.5).

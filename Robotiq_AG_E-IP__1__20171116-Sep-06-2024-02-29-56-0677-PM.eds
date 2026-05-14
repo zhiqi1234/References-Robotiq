@@ -1,0 +1,208 @@
+$ ****************************************************************************
+$  
+$ File:   HILSCHER CIFX50-RE_EIS.EDS
+$  
+$ Author: Ralf Hornung, Hilscher GmbH, Hattersheim, Germany
+$         hotline@hilscher.com
+$ Date:   20.08.06
+$  
+$ ****************************************************************************
+$  
+$ ATTENTION:
+$  
+$  Changes in this file can cause configuration or communication problems.
+$  
+$ ****************************************************************************
+$  
+$ Changes:
+$  
+$  Version  Date       Name   Description
+$ -------------------------------------------------------------------------
+$  
+$  1.0      06.26.08   RalfH  created
+$  
+$ ****************************************************************************
+
+[File]
+        DescText = "EDS-File for netIC 'NIC 50-RE' EtherNet/IP Adapter";
+        CreateDate = 06-26-2008;
+        CreateTime = 10:00:00;
+        ModDate = 06-26-2008;
+        ModTime = 10:00:00;
+        Revision = 1.0;
+
+
+[Device]
+        VendCode = 283;
+        VendName = "Hilscher GmbH";
+        ProdType = 12;
+        ProdTypeStr = "Communication Adapter";
+        ProdCode = 0x10D;
+        MajRev = 1;
+        MinRev = 1;
+        ProdName = "NIC 50-RE/EIS";
+        Catalog = "NIC 50-RE/EIS";
+
+$  Icon        = "netIC_50-RE.ico";
+
+[Device Classification]
+        Class1 = EtherNetIP;
+
+
+[Params]
+        Param1 =
+                0,
+                ,,
+                0x0000,
+                0xC7,
+                2,
+                "Assembly Output Size",
+                "",
+                "",
+                0,20,20,
+                ,,,,
+                ,,,,
+                0;
+
+        Param2 =
+                0,
+                ,,
+                0x0000,
+                0xC7,
+                2,
+                "Assembly Input Size",
+                "",
+                "",
+                4,20,20,
+                ,,,,
+                ,,,,
+                0;
+
+        Param3 =
+                0,
+                ,,
+                0x0010,
+                0xC7,
+                2,
+                "Input Data",
+                "",
+                "",
+                0,255,0,
+                ,,,,
+                ,,,,
+                0;
+        Param4 =
+                0,
+                ,,
+                0x0000,
+                0xC7,
+                2,
+                "Output Data",
+                "",
+                "",
+                0,255,0,
+                ,,,,
+                ,,,,
+                0;
+
+[Assembly]
+        Assem100 =
+                "Output_Data",
+                ,
+                20,
+                0x0000,
+                ,,
+                16,Param4,
+                16,Param4,
+                16,Param4,
+                16,Param4,
+                16,Param4,
+                16,Param4,
+                16,Param4,
+                16,Param4,
+                16,Param4,
+                16,Param4,
+                16,Param4,
+                16,Param4,
+                16,Param4,
+                16,Param4,
+                16,Param4,
+                16,Param4,
+                16,Param4,
+                16,Param4,
+                16,Param4,
+                16,Param4;
+        Assem101 =
+                "Input_Data",
+                ,
+                20,
+                0x0000,
+                ,,
+                16,Param3,
+                16,Param3,
+                16,Param3,
+                16,Param3,
+                16,Param3,
+                16,Param3,
+                16,Param3,
+                16,Param3,
+                16,Param3,
+                16,Param3,
+                16,Param3,
+                16,Param3,
+                16,Param3,
+                16,Param3,
+                16,Param3,
+                16,Param3,
+                16,Param3,
+                16,Param3,
+                16,Param3,
+                16,Param3;
+
+[Connection Manager]
+        Connection1 =
+                0x04010002,             $ Trigger and Transport
+                0x44244405,             $ Point Multicast
+                ,Param1,Assem100,       $ OT RPI Size format
+                ,Param2,Assem101,       $ TO rpi size format
+                ,,                      $ config 1
+                ,,                      $ config 2
+                "Data, In/Out       ",  $ connection name
+                "Assembly Object In/Out Data",    $ help string
+                "20 04 24 01 2C 64 2C 65";    $ path
+
+        Connection2 =
+                0x01010002,             $ Trigger and Transport
+                0x44244305,             $ Point Multicast
+                ,0,,                    $ OT RPI Size format
+                ,Param2,Assem101,       $ TO rpi size format
+                ,,                      $ config 1
+                ,,                      $ config 2
+                "Listen only        ",  $ connection name
+                "Assembly Object In/Out Data",    $ help string
+                "20 04 24 01 2C C0 2C 65";    $ path
+
+
+[Port]
+        Port1 =
+                TCP,
+                "Port 1",
+                "20 F5 24 01",
+                2;
+
+
+[Capacity]
+
+        ConnOverhead = .004;            $ Connection Overhead
+
+        MaxIOConnections = 3;           $ Maximum number of Class 1 Connections
+        MaxMsgConnections = 5;          $ Maximum number of Class 3 Connections
+        TSpec1 = TxRx, 10, 1400;        $ packets per sec @ 10 bytes
+        TSpec2 = TxRx, 100, 1300;       $ packets per sec @ 100 bytes
+        TSpec3 = TxRx, 200, 1120;       $ packets per sec @ 200 bytes
+
+
+
+$ ****************************************************************************
+$ EOF
+$ ****************************************************************************

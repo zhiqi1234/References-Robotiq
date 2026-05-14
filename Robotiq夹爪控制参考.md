@@ -1,4 +1,29 @@
-# 4.1 Generalities (总体概述)
+# Robotiq Adaptive Gripper S-Model 控制参考手册
+
+## 夹爪结构概述
+
+Adaptive Gripper S-Model 是一种用于工业应用的机器人末端夹爪，可拾取、放置和处理各种尺寸和形状的零件。
+
+- **手指结构**：三根关节手指（手指 A 在前，手指 B 和 C 在后），每根手指有 3 个关节（3 段指骨）。夹爪最多可与物体产生 **10 个接触点**（每根手指 3 个指骨 + 手掌）。
+- **欠驱动设计 (Under-actuated)**：电机数量少于关节总数，手指可自动适应物体形状，同时也简化了夹爪控制。
+- **两种基本运动**：
+  1. **切换操作模式**：改变手指 B 和 C 的朝向（4 种预设模式）；
+  2. **开合手指**：通过单个"转到请求位置"命令完成，夹爪自动控制每根手指直到稳定——接触物体或到达机械限位。
+
+## 关键安全警告
+
+> ⚠️ **Warning**
+>
+> - 夹爪必须牢固安装后才能操作机器人。
+> - **严禁使用交流电源供电**，必须使用 24V DC。
+> - 始终遵守夹爪的推荐负载。根据应用场景合理设置抓取力和速度。
+> - 夹爪通电时，手指和衣物远离夹爪。
+> - 夹爪仅用于**抓取和临时固定零件**，**不得**用于对物体或表面施加力（如推、压等操作）。
+> - 任何超出技术参数范围的使用均视为不当使用。
+
+---
+
+## 1. 总体概述 (Generalities)
 
 > ⚠️ **Caution**
 > 本节适用于固件版本 3.0（2011 年 11 月之后交付的夹爪）。对于早期版本，请参阅归档文档。
@@ -10,11 +35,49 @@ Robotiq Adaptive Gripper S-Model 通过工业通信协议（如 EtherNet/IP, Dev
 > - 对于每种操作模式（Operation Mode），操作员都可以控制手指的速度（Speed）和力（Force）。
 > - 除非选择了独立控制模式（Individual Control），否则手指的运动始终是同步的。动作由单个“转到请求位置（Go to requested position）”命令完成（每个机械指骨的运动是自动进行的）。
 
-由于 Robotiq Adaptive Gripper S-Model 拥有独立的内部控制器，因此使用如“转到请求位置”等高级命令来控制它。内嵌的 Robotiq 控制器负责调节设定的速度和力，同时手指的机械结构会自动适应物体的形状。
+由于 Robotiq Adaptive Gripper S-Model 拥有独立的内部控制器，因此使用如”转到请求位置”等高级命令来控制它。内嵌的 Robotiq 控制器负责调节设定的速度和力，同时手指的机械结构会自动适应物体的形状。
+
+### 四种操作模式 (Four Operation Modes)
+
+夹爪支持四种预设操作模式，通过 `rMOD` 位（Byte 0, Bit 1-2）选择：
+
+| rMOD | 模式                              | 说明                                                                                                |
+| :--: | :-------------------------------- | :-------------------------------------------------------------------------------------------------- |
+|  00  | **Basic Mode (基本模式)**   | 最通用的模式。最适合有一维尺寸大于另外两维的物体，但可以抓取各类物体。                              |
+|  01  | **Wide Mode (宽开口模式)**  | 最适合抓取圆形或大型物体。                                                                          |
+|  10  | **Pinch Mode (捏合模式)**   | 用于需要精确拾取的小物体。此模式只能在手指远端指骨之间抓取物体。                                    |
+|  11  | **Scissor Mode (剪刀模式)** | 主要用于微小物体。此模式力量较小但精度高。手指 B 和 C 横向相向运动，手指 A 保持静止。无法包裹物体。 |
+
+> ℹ️ **Info**
+> 操作模式是由用户根据物体尺寸/形状和任务需求预设的输入。夹爪会自动决定产生包裹抓取（Encompassing Grip）还是指尖抓取（Fingertip Grip），取决于操作模式、物体几何形状以及物体相对夹爪的位置。
+
+### 两种抓取类型 (Two Types of Grip)
+
+夹爪闭合时会产生两种抓取类型之一，**由夹爪根据以下因素自动决定**：
+
+- 操作模式 (Operation Mode)
+- 零件的几何形状
+- 零件相对夹爪的位置
+
+> 同一零件、同一操作模式，因位置不同，可能产生不同的抓取类型。
+
+| 类型                                   | 说明                                                                                           | 触发条件                                                          |
+| :------------------------------------- | :--------------------------------------------------------------------------------------------- | :---------------------------------------------------------------- |
+| **Encompassing Grip (包裹抓取)** | 手指包围物体，物体被包裹在手指之间。稳定性与摩擦力无关，稳定性更高。**建议尽可能使用。** | 物体的近端/中段指骨先接触物体。应将物体抵住夹爪手掌以确保稳定性。 |
+| **Fingertip Grip (指尖抓取)**    | 仅由远端指骨夹持物体，类似于传统平行夹爪。稳定性主要依赖摩擦力。                               | 物体的远端指骨先接触物体。                                        |
+
+### 抓取类型 vs 操作模式兼容性
+
+| 操作模式                | Encompassing Grip | Fingertip Grip |
+| :---------------------- | :---------------: | :------------: |
+| Basic Mode (基本模式)   |        ✓        |       ✓       |
+| Wide Mode (宽开口模式)  |        ✓        |       ✓       |
+| Pinch Mode (捏合模式)   |        ✗        |       ✓       |
+| Scissor Mode (剪刀模式) |        ✗        |       ✓       |
 
 ---
 
-# 4.2 Status overview (状态概述)
+## 2. 状态概述 (Status Overview)
 
 Adaptive Gripper S-Model 会向机器人控制器返回多个寄存器的信息以供读取：
 
@@ -27,7 +90,7 @@ Adaptive Gripper S-Model 会向机器人控制器返回多个寄存器的信息�
 
 ---
 
-# 4.3 Control overview (控制逻辑概述)
+## 3. 控制逻辑概述 (Control Overview)
 
 夹爪控制器具有与机器人控制器共享的内部内存。内存的一部分用于机器人输出（Robot Output）/ 夹爪功能控制。另一部分内存用于机器人输入（Robot Input）/ 夹爪状态反馈。
 
@@ -41,18 +104,18 @@ Adaptive Gripper S-Model 会向机器人控制器返回多个寄存器的信息�
 
 ---
 
-# 4.4 Status LEDs (状态指示灯)
+## 4. 状态指示灯 (Status LEDs)
 
 夹爪上配有三个状态 LED 指示灯，提供有关 Adaptive Gripper S-Model 运行状态的一般信息。这在硬件调试和排障时非常有用。
 
-## 4.4.1 Supply LED (电源指示灯)
+### 4.1 电源指示灯 (Supply LED)
 
 | 颜色        | 状态     | 说明                         |
 | :---------- | :------- | :--------------------------- |
 | Blue (蓝色) | Off (灭) | 夹爪未供电                   |
 | Blue (蓝色) | On (亮)  | 夹爪供电正常，控制板正在运行 |
 
-## 4.4.2 Communication LED (通信指示灯)
+### 4.2 通信指示灯 (Communication LED)
 
 | 颜色         | 状态            | 说明                                         |
 | :----------- | :-------------- | :------------------------------------------- |
@@ -60,7 +123,7 @@ Adaptive Gripper S-Model 会向机器人控制器返回多个寄存器的信息�
 | Green (绿色) | Blinking (闪烁) | 已检测到网络，但未建立连接                   |
 | Green (绿色) | On (亮)         | 已检测到网络，且至少有一个连接处于已建立状态 |
 
-## 4.4.3 Fault LED (故障指示灯)
+### 4.3 故障指示灯 (Fault LED)
 
 | 颜色       | 状态            | 说明                           |
 | :--------- | :-------------- | :----------------------------- |
@@ -73,27 +136,27 @@ Adaptive Gripper S-Model 会向机器人控制器返回多个寄存器的信息�
 
 ---
 
-# 4.5 Gripper register mapping
+## 5. 寄存器映射 (Register Mapping)
 
 > ⚠️ **Caution**
-> This section applies to firmware 3.0 (Grippers delivered after November 2011). For prior versions please see the documentation archives.
+> 本节适用于固件版本 3.0（2011 年 11 月之后交付的夹爪）。对于早期版本，请参阅归档文档。
 
 > ℹ️ **Info**
-> Register format is Little Endian (Intel format), namely from LSB (Less Significant Bit) to MSB (Most Significant Bit).
+> 寄存器格式为小端序（Little Endian / Intel 格式），即从 LSB（最低有效位）到 MSB（最高有效位）。
 
-Version 3 of the Adaptive Gripper S-Model firmware provides new functionalities such as the direct position control of the fingers via "go to" commands. There is also additional advanced options such as the individual control of the fingers and scissor and the automatic centering of the fingers.
+固件版本 3.0 提供了新功能，如通过"Go To"命令直接控制手指位置，以及手指和剪刀轴的独立控制、手指自动居中（beta）等高级选项。
 
-A Simplified Control Mode is available for users which do not intend to use the advanced option otherwise a register mapping for the Advanced Control Mode containing all the gripper functionalities is also provided. From the gripper standpoint, there is no difference between the two modes. The Simple Control Mode is only intended to ease the usage of the gripper for users who are only interested in the basic functionalities.
+系统提供了**简化控制模式（Simplified Control Mode）**和**高级控制模式（Advanced Control Mode）**两种寄存器映射。从夹爪的角度看，两种模式没有区别，简化模式只是为了方便仅需基本功能的用户。
 
 > ⚠️ **Warning**
-> When using the Simplified Control Mode, it is important to fill the unused registers with zeros. Neglecting to do so would result in the unwanted triggering of control options and could lead to a hazardous behavior of the Gripper.
+> 使用简化控制模式时，必须将未使用的寄存器填零。否则会意外触发控制选项，可能导致夹爪出现危险行为。
 
 ---
 
-## Register mapping for the Simplified Control Mode
+### 5.1 简化控制模式寄存器映射 (Simplified Control Mode)
 
 > ⚠️ **Caution**
-> Byte numeration starts on zero and not at 1 for the functionalities and status registers.
+> 字节编号从 0 开始（而非 1），适用于功能和状态寄存器。
 
 | REGISTER | ROBOT OUTPUT / FUNCTIONALITIES | ROBOT INPUT / STATUS    |
 | -------- | ------------------------------ | ----------------------- |
@@ -116,7 +179,7 @@ A Simplified Control Mode is available for users which do not intend to use the 
 
 ---
 
-## Register mapping for the Advanced Control Mode
+### 5.2 高级控制模式寄存器映射 (Advanced Control Mode)
 
 | REGISTER | ROBOT OUTPUT / FUNCTIONALITIES                 | ROBOT INPUT / STATUS       |
 | -------- | ---------------------------------------------- | -------------------------- |
@@ -139,17 +202,17 @@ A Simplified Control Mode is available for users which do not intend to use the 
 
 ---
 
-# 4.6 Robot output registers & functionalities
+## 6. 机器人输出寄存器 (Robot Output Registers)
 
 > ⚠️ **Caution**
-> This section applies to firmware 3.0 (Grippers delivered after November 2011). For prior versions please see the documentation archives.
+> 本节适用于固件版本 3.0（2011 年 11 月之后交付的夹爪）。对于早期版本，请参阅归档文档。
 
 > ℹ️ **Info**
-> Register format is Little Endian (Intel format), namely from LSB (Less Significant Bit) to MSB (Most Significant Bit).
+> 寄存器格式为小端序（Little Endian / Intel 格式），即从 LSB 到 MSB。
 
 ---
 
-## Register: ACTION REQUEST
+### 6.1 ACTION REQUEST
 
 Address: Byte 0
 
@@ -177,7 +240,7 @@ Address: Byte 0
 
 ---
 
-## Register: GRIPPER OPTIONS
+### 6.2 GRIPPER OPTIONS
 
 Address: Byte 1
 
@@ -203,7 +266,7 @@ Address: Byte 1
 
 ---
 
-## Register: GRIPPER OPTIONS 2
+### 6.3 GRIPPER OPTIONS 2
 
 Address: Byte 2
 
@@ -213,7 +276,7 @@ Address: Byte 2
 
 ---
 
-## Register: POSITION REQUEST (FINGER A IN INDIVIDUAL MODE)
+### 6.4 POSITION REQUEST (FINGER A)
 
 Address: Byte 3
 
@@ -226,11 +289,11 @@ This register is used to set the Adaptive Gripper fingers target position (or fi
 > ⚠️ **Caution**
 > In order to protect the Gripper from geometric interferences, several software limits are implemented and therefore some positions are not reachable. When a finger reaches the software limit, the Gripper status will indicate that the requested position was reached. This is because the requested position is internally replaced by the software limit.
 
-_(Figure 4.6.1: Reachable workspace of the fingers and scissor axis)_
+> 参考原版手册 Figure 4.6.1：手指与剪刀轴的可达工作空间
 
 ---
 
-## Register: SPEED (FINGER A IN INDIVIDUAL MODE)
+### 6.5 SPEED (FINGER A)
 
 Address: Byte 4
 
@@ -245,7 +308,7 @@ This register is used to setup the Gripper closing or opening speed (or finger A
 
 ---
 
-## Register: FORCE (FINGER A IN INDIVIDUAL MODE)
+### 6.6 FORCE (FINGER A)
 
 Address: Byte 5
 
@@ -260,7 +323,7 @@ The force setting defines the final grasping force of the Adaptive Gripper (or f
 
 ---
 
-## Register: FINGER B POSITION REQUEST
+### 6.7 FINGER B POSITION REQUEST
 
 Address: Byte 6
 
@@ -272,7 +335,7 @@ This register is used to set the finger B target position. It is only considered
 
 ---
 
-## Register: FINGER B SPEED
+### 6.8 FINGER B SPEED
 
 Address: Byte 7
 
@@ -284,7 +347,7 @@ This register is used to set finger B speed. It is only considered if the Indivi
 
 ---
 
-## Register: FINGER B FORCE
+### 6.9 FINGER B FORCE
 
 Address: Byte 8
 
@@ -296,7 +359,7 @@ This register is used to set finger B force. It is only considered if the Indivi
 
 ---
 
-## Register: FINGER C POSITION REQUEST
+### 6.10 FINGER C POSITION REQUEST
 
 Address: Byte 9
 
@@ -308,7 +371,7 @@ This register is used to set the finger C target position. It is only considered
 
 ---
 
-## Register: FINGER C SPEED
+### 6.11 FINGER C SPEED
 
 Address: Byte 10
 
@@ -320,7 +383,7 @@ This register is used to set finger C speed. It is only considered if the Indivi
 
 ---
 
-## Register: FINGER C FORCE
+### 6.12 FINGER C FORCE
 
 Address: Byte 11
 
@@ -332,7 +395,7 @@ This register is used to set finger C force. It is only considered if the Indivi
 
 ---
 
-## Register: SCISSOR POSITION REQUEST
+### 6.13 SCISSOR POSITION REQUEST
 
 Address: Byte 12
 
@@ -344,7 +407,7 @@ This register is used to set the scissor axis target position. It is only consid
 
 ---
 
-## Register: SCISSOR SPEED
+### 6.14 SCISSOR SPEED
 
 Address: Byte 13
 
@@ -356,7 +419,7 @@ This register is used to set the scissor axis speed. It is only considered if th
 
 ---
 
-## Register: SCISSOR FORCE
+### 6.15 SCISSOR FORCE
 
 Address: Byte 14
 
@@ -366,17 +429,17 @@ Address: Byte 14
 
 This register is used to set the scissor axis force. It is only considered if the Individual Control of Scissor option is selected (bit rICS is set). Please refer to rFRA (force) register for more information.
 
-# 4.7 Robot input registers & status
+## 7. 机器人输入寄存器 (Robot Input Registers)
 
 > ⚠️ **Caution**
-> This section applies to firmware 3.0 (grippers delivered after November 2011). For prior versions please see the documentation archives.
+> 本节适用于固件版本 3.0（2011 年 11 月之后交付的夹爪）。对于早期版本，请参阅归档文档。
 
 > ℹ️ **Info**
-> Register format is Little Endian (Intel format), namely from LSB (Less Significant Bit) to MSB (Most Significant Bit).
+> 寄存器格式为小端序（Little Endian / Intel 格式），即从 LSB 到 MSB。
 
 ---
 
-## Register: GRIPPER STATUS
+### 7.1 GRIPPER STATUS
 
 Address: Byte 0
 
@@ -390,7 +453,7 @@ Address: Byte 0
 
 ---
 
-## Register: OBJECT STATUS
+### 7.2 OBJECT STATUS
 
 Address: Byte 1
 
@@ -411,7 +474,7 @@ When a contact is detected, the corresponding axis will stop until one of these 
 
 ---
 
-## Register: FAULT STATUS
+### 7.3 FAULT STATUS
 
 Address: Byte 2
 
@@ -422,7 +485,7 @@ Address: Byte 2
 
 ---
 
-## Register: POSITION REQUEST ECHO (FINGER A IN INDIVIDUAL MODE)
+### 7.4 POSITION REQUEST ECHO (FINGER A)
 
 Address: Byte 3
 
@@ -432,7 +495,7 @@ Address: Byte 3
 
 ---
 
-## Register: FINGER A POSITION
+### 7.5 FINGER A POSITION
 
 Address: Byte 4
 
@@ -442,7 +505,7 @@ Address: Byte 4
 
 ---
 
-## Register: FINGER A CURRENT
+### 7.6 FINGER A CURRENT
 
 Address: Byte 5
 
@@ -452,7 +515,7 @@ Address: Byte 5
 
 ---
 
-## Register: FINGER B POSITION REQUEST ECHO
+### 7.7 FINGER B POSITION REQUEST ECHO
 
 Address: Byte 6
 
@@ -462,7 +525,7 @@ Address: Byte 6
 
 ---
 
-## Register: FINGER B POSITION
+### 7.8 FINGER B POSITION
 
 Address: Byte 7
 
@@ -472,7 +535,7 @@ Address: Byte 7
 
 ---
 
-## Register: FINGER B CURRENT
+### 7.9 FINGER B CURRENT
 
 Address: Byte 8
 
@@ -482,7 +545,7 @@ Address: Byte 8
 
 ---
 
-## Register: FINGER C POSITION REQUEST ECHO
+### 7.10 FINGER C POSITION REQUEST ECHO
 
 Address: Byte 9
 
@@ -492,7 +555,7 @@ Address: Byte 9
 
 ---
 
-## Register: FINGER C POSITION
+### 7.11 FINGER C POSITION
 
 Address: Byte 10
 
@@ -502,7 +565,7 @@ Address: Byte 10
 
 ---
 
-## Register: FINGER C CURRENT
+### 7.12 FINGER C CURRENT
 
 Address: Byte 11
 
@@ -512,7 +575,7 @@ Address: Byte 11
 
 ---
 
-## Register: SCISSOR POSITION REQUEST ECHO
+### 7.13 SCISSOR POSITION REQUEST ECHO
 
 Address: Byte 12
 
@@ -522,7 +585,7 @@ Address: Byte 12
 
 ---
 
-## Register: SCISSOR POSITION
+### 7.14 SCISSOR POSITION
 
 Address: Byte 13
 
@@ -532,7 +595,7 @@ Address: Byte 13
 
 ---
 
-## Register: SCISSOR CURRENT
+### 7.15 SCISSOR CURRENT
 
 Address: Byte 14
 
@@ -540,7 +603,7 @@ Address: Byte 14
 | --- | ---- | ----------------------------------------------------------- |
 | 0-7 | gCUS | Current for the scissor axis `<br>`0.1 \* Current (in mA) |
 
-# 4.8 Example: Control Logic Flow (控制逻辑流程示例)
+## 8. 控制逻辑流程示例 (Control Logic Flow)
 
 以下是一个典型的夹爪“抓取与放置（Pick and Place）”的控制逻辑流程图的文字描述版，展示了如何结合使用功能寄存器与状态寄存器：
 
@@ -567,15 +630,16 @@ Address: Byte 14
 - **写入 (Write)**：设定目标位置 (Position)、速度 (Speed) 和力 (Force)（范围为 0-255）。并设置 `Bit 3 (rGTO) = 1` 触发运动。
 - **读取等待 (Wait)**：循环读取状态以判断是否到达位置或触碰物体。判断条件为：
   - `Byte 3 (echo) == 目标请求位置`
-  - **并且** `Bit 6 & 7 (gSTA) == 1` （停止，所有手指均未达到设定位置），**或者** `Bit 6 (gSTA) == 1` ，**或者** `Bit 7 (gSTA) == 1`（停止，所有手指到达设定位置）。
+  - **并且** `gSTA (Bit 6 & 7) == 3`（停止，所有手指到达设定位置），**或者** `gSTA == 1`（停止，所有手指均未到达设定位置——抓取到物体），**或者** `gSTA == 2`（停止，1-2根手指未到达设定位置——部分抓取到物体）。
+  - 也可以通过 `Byte 1 (Object Status)` 中的 `gDTA/gDTB/gDTC` 位来更精确地判断每根手指是因接触物体而停止（01=闭合中接触, 10=张开中接触），还是已到达请求位置（11）。
 - **完成**：重复步骤 3 和 4 进行下一个抓取/释放动作。
 
 > ℹ️ **Info**
 > `Go to requested position` 指令通常用于张开/闭合夹爪，直到夹爪检测到物体阻挡，或者到达请求的绝对位置为止。
 
-# 4.9 Robotiq Adaptive Gripper S Model - Modbus RTU 通信手册
+## 9. Modbus RTU 通信 (Modbus RTU Communication)
 
-## 4.9.1 Connection setup
+### 9.1 连接设置 (Connection Setup)
 
 下表描述了使用Modbus RTU协议控制Robotiq Adaptive Gripper S型号夹爪的连接要求：
 
@@ -595,7 +659,7 @@ Address: Byte 14
 
 > 说明：Modbus RTU协议的每个寄存器（字 - 16位）由Robotiq Adaptive Gripper S的2个寄存器（字节 - 8位）组成。第一个夹爪输出Modbus寄存器（0x07D0）由Robotiq Adaptive Gripper S的前2个寄存器（字节0和字节1）组成。
 
-## 4.9.2 Read holding registers (FC03)
+### 9.2 读保持寄存器 FC03 (Read Holding Registers)
 
 功能码03（FC03）用于读取夹爪状态（机器人输入），例如夹爪状态、物体状态、手指位置等。
 
@@ -626,10 +690,10 @@ Address: Byte 14
 | 0000 | Content of register 07D1                                                   |
 | 4433 | Cyclic Redundancy Check (CRC)                                              |
 
-> ⚠️ Note
+> ℹ️ **Note**
 > 自适应夹爪寄存器值以200Hz的频率更新。因此，建议发送FC03命令的间隔不小于5ms。
 
-## 4.9.3 Preset single register (FC06)
+### 9.3 预置单寄存器 FC06 (Preset Single Register)
 
 功能码06（FC06）用于激活夹爪功能（机器人输出），例如动作请求、速度、力等。
 
@@ -659,7 +723,7 @@ Address: Byte 14
 | 0100 | Value written                             |
 | 0962 | Cyclic Redundancy Check (CRC)             |
 
-## 4.9.4 Preset multiple registers (FC16)
+### 9.4 预置多寄存器 FC16 (Preset Multiple Registers)
 
 功能码16（FC16）用于激活夹爪功能（机器人输出），例如动作请求、速度、力等。
 
@@ -692,14 +756,14 @@ Address: Byte 14
 | 0002 | Number of written                            |
 | 9130 | Cyclic Redundancy Check (CRC)                |
 
-## 4.9.5 Master read&write multiple registers (FC23)
+### 9.5 主站读写多寄存器 FC23 (Master Read&Write)
 
 功能码23（FC23）用于同时读取夹爪状态（机器人输入）和激活夹爪功能（机器人输出），例如夹爪状态、物体状态、手指位置、动作请求（速度、力等）。
 
-> ⚠️ Note
+> ℹ️ **Note**
 > C-Model示例仅作为S-Model的操作说明示例，控制方式和位寻址不相同，请参考C-Model指令手册获取详细示例。
 
-## 4.9.6 Modbus RTU example
+### 9.6 Modbus RTU 完整示例 (Pick & Place)
 
 本节描述了使用Modbus RTU协议实现取放应用的典型示例。激活夹爪后，机器人移动到拾取位置抓取物体，再移动到第二个位置释放物体。
 
@@ -940,3 +1004,200 @@ Address: Byte 14
 | 348D | Cyclic Redundancy Check (CRC)                                                                                                                                                            |
 
 ### Step 9: Loop back to step 7 if other objects have to be gripped.
+
+---
+
+## 附录 A: 关键规格参数速查 (Key Specifications)
+
+### 机械参数
+
+| 规格                            | 数值        |
+| :------------------------------ | :---------- |
+| 夹爪最大开度 (Stroke)           | 0 – 155 mm |
+| 夹爪大约重量                    | 2.3 kg      |
+| 推荐负载 (包裹抓取)             | 10 kg       |
+| 推荐负载 (指尖抓取)             | 2.5 kg      |
+| 指尖最大抓取力                  | 60 N        |
+| 最大抗破坏力 (Break Away Force) | 100 N       |
+| 手指最大闭合速度                | 110 mm/s    |
+
+> ℹ️ **Info**
+>
+> - **Actuation Force (驱动力)**：夹爪电机可施加在物体上的力。
+> - **Break Away Force (抗破坏力)**：夹爪可承受的最大外力。由于夹爪自锁，抗破坏力高于驱动力。
+> - 在 Pinch 模式下，手指 B 和 C 会对手指 A 施力，由于手指 A 被锁定，Pinch 驱动力 = 20 + 20 = 40 N。
+
+### 电气参数
+
+| 规格                         | 数值                   |
+| :--------------------------- | :--------------------- |
+| 工作电源电压                 | 24 V DC                |
+| 绝对最大电源电压             | 26 V                   |
+| 静态功耗 (最小)              | 4.1 W                  |
+| 峰值功耗 (最大抓取力时)      | 36 W                   |
+| 最大 RMS 电源电流 (24V 供电) | 1.5 A                  |
+| 外部保险丝                   | 4 A (慢熔，由用户自备) |
+
+> ⚠️ **Caution**
+> 夹爪必须由 24V DC 电源供电，不可使用交流电源。外部 4A 保险丝不随夹爪提供，用户需自行安装。
+
+### 环境条件
+
+| 规格              | 数值           |
+| :---------------- | :------------- |
+| 工作温度范围      | -10°C ~ 50°C |
+| 存储/运输温度范围 | -30°C ~ 60°C |
+| 湿度 (无冷凝)     | 20% – 80% RH  |
+| 振动              | < 0.5 G        |
+
+---
+
+## 附录 B: 故障排除 (Troubleshooting)
+
+### LED 指示灯诊断流程
+
+按照以下顺序检查三颗 LED 指示灯来定位问题：
+
+### Step 1: 检查蓝色 Supply LED
+
+| 状态     | 判断       | 处理                                                                    |
+| :------- | :--------- | :---------------------------------------------------------------------- |
+| 亮 (ON)  | 供电正常   | 进入 Step 2                                                             |
+| 灭 (OFF) | 夹爪未供电 | 检查电源线完整性，检查电源是否符合规格（24V DC, ≥36W），检查外部保险丝 |
+
+### Step 2: 检查绿色 Communication LED
+
+| 状态            | 判断                     | 处理                                                        |
+| :-------------- | :----------------------- | :---------------------------------------------------------- |
+| 亮 (ON)         | 网络已检测，连接已建立   | 进入 Step 3                                                 |
+| 闪烁 (Blinking) | 网络已检测，但未建立连接 | 进入 Step 4                                                 |
+| 灭 (OFF)        | 未检测到网络             | 检查通信线缆和网络基础设施（参见具体协议章节），进入 Step 4 |
+
+### Step 3: 检查红色 Fault LED
+
+| 状态            | 判断                          | 处理                           |
+| :-------------- | :---------------------------- | :----------------------------- |
+| 灭 (OFF)        | 无故障                        | 进入 Step 5                    |
+| 闪烁 (Blinking) | 发生严重故障 (Major Fault)    | 复位（重新激活）夹爪           |
+| 亮 (ON)         | 轻微故障（或自动释放/启动中） | 等待熄灭；如果转为闪烁则需复位 |
+
+### Step 4: 通信与网络问题
+
+- 确保同一时间只使用一种连接（USB 或工业协议）
+- **Ethernet 系列 (EtherNet/IP, Modbus TCP)**：使用正确 IP 设置（固定 IP），EtherCAT 需 DHCP
+- **DeviceNet**：需要独立的 24V 电源供电（与夹爪主电源分开），MAC ID 默认为 11，波特率 250 kBaud
+- **CANopen**：MAC ID 默认为 11，波特率 1 MBaud
+- 主站通信设备必须使用与夹爪控制器相同的协议和选项设置
+- 重新编程通信选项后，等待红色 LED 停止闪烁以完成配置更新
+
+### Step 5: 其他常见问题
+
+| 问题                            | 可能原因                | 解决方案                                                                                      |
+| :------------------------------ | :---------------------- | :-------------------------------------------------------------------------------------------- |
+| 夹爪激活时断电（蓝色 LED 熄灭） | 电源功率不足            | 检查电源是否满足最低要求（24V, 36W），电压不超过 26V                                          |
+| 夹爪不响应运动指令              | 未激活或 rGTO 未置位    | 确保夹爪已激活（rACT=1），发送位置请求时确保 rGTO=1                                           |
+| 无法建立 Ethernet 连接          | IP 地址或协议设置不匹配 | 默认 IP: 192.168.1.11, 网关: 255.255.255.0。通过 USB 使用 Robotiq User Interface 查看当前地址 |
+| 无法建立 CAN bus 连接           | 供电或节点地址问题      | DeviceNet 需独立 24V 供电；默认节点地址均为 11                                                |
+| 手指运动不流畅/抖动             | 杂物或碎屑堵塞          | 清洁夹爪，确保手指指骨和连杆之间无杂物或液体                                                  |
+| 抓取力明显变化                  | 指垫脏污或磨损          | 清洁指垫，检查磨损情况。注意包裹抓取力始终大于指尖抓取力                                      |
+
+> ⚠️ **Warning**
+> 如果系统在夹爪激活时断电，务必检查电源。电源必须满足最低要求：24V 下至少 36W（1.5A），且工作电压不得超过 26V。
+
+---
+
+## 附录 C: 各通信协议出厂默认设置 (Factory Default Communication Settings)
+
+夹爪出厂时仅配置一种通信协议。不同协议的默认设置如下：
+
+### Modbus RTU (RS232 串口)
+
+| 参数               | 默认值        |
+| :----------------- | :------------ |
+| 物理接口           | RS232         |
+| 波特率             | 115,200 bps   |
+| 数据位             | 8             |
+| 停止位             | 1             |
+| 校验               | None          |
+| 从站 ID (Slave ID) | 0x0009 (9)    |
+| 机器人输出首寄存器 | 0x03E8 (1000) |
+| 机器人输入首寄存器 | 0x07D0 (2000) |
+
+### Modbus TCP
+
+| 参数               | 默认值        |
+| :----------------- | :------------ |
+| 协议               | TCP/IP        |
+| 端口               | 502           |
+| IP 地址            | 192.168.1.11  |
+| 子网掩码           | 255.255.255.0 |
+| 网关               | Disabled      |
+| DHCP               | Disabled      |
+| Unit ID            | 0x0002 (2)    |
+| 机器人输出首寄存器 | 0x0000 (0)    |
+| 机器人输入首寄存器 | 0x0000 (0)    |
+
+> ℹ️ **Info**
+> Modbus TCP 寄存器更新频率为 **100Hz**，建议命令间隔 ≥ **10ms**。Modbus RTU 更新频率为 200Hz，建议间隔 ≥ 5ms。
+
+### EtherNet/IP
+
+| 参数                             | 默认值          |
+| :------------------------------- | :-------------- |
+| IP 地址                          | 192.168.1.11    |
+| 子网掩码                         | 255.255.255.0   |
+| 网关                             | Disabled        |
+| BootP / DHCP                     | Disabled        |
+| 100Mbit / Full Duplex / Auto-neg | Enabled         |
+| Assembly Instance (Input)        | 101             |
+| Assembly Instance (Output)       | 100             |
+| Configuration Instance           | 1               |
+| Connection Type                  | Run/Idle Header |
+| Prod. Data Length                | 20 bytes        |
+| Cons. Data Length                | 20 bytes        |
+
+### EtherCAT
+
+| 参数              | 默认值                        |
+| :---------------- | :---------------------------- |
+| 寻址              | 动态寻址 (总线设置不可自定义) |
+| Vendor ID         | 0x0000FFFF                    |
+| Product Code      | 0x0000000B                    |
+| Input Data Bytes  | 16                            |
+| Output Data Bytes | 16                            |
+
+### DeviceNet
+
+| 参数              | 默认值           |
+| :---------------- | :--------------- |
+| MAC ID            | 11               |
+| 波特率            | 250 kBaud        |
+| Vendor ID         | 0x0000011B (283) |
+| Product Code      | 0x00000023 (35)  |
+| Product Type      | 0x0000000C (12)  |
+| Prod. Data Length | 16 bytes         |
+| Cons. Data Length | 16 bytes         |
+
+> ⚠️ **Caution**
+>
+> - 夹爪内部**没有**安装终端电阻。
+> - 电缆屏蔽层必须在机器人控制器端接地。
+> - DeviceNet 通信需要**独立的 24V 供电**，建议与夹爪主电源分开供电。
+
+### CANopen
+
+| 参数                 | 默认值               |
+| :------------------- | :------------------- |
+| MAC ID (Node ID)     | 11                   |
+| 波特率               | 1 MBaud              |
+| Vendor ID            | 0x00000044 (68)      |
+| Product Code         | 0x001785A4 (1541540) |
+| Revision Number      | 0x00020000 (131072)  |
+| Send Object Index    | 0x2000               |
+| Receive Object Index | 0x2200               |
+
+> ℹ️ **Info**
+> CANopen 通信接口支持 SDO (Service Data Object) 和 PDO (Process Data Object) 协议。
+
+> ⚠️ **Caution**
+> 夹爪内部**没有**安装终端电阻。电缆屏蔽层必须在机器人控制器端接地。

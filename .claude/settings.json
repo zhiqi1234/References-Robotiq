@@ -5,7 +5,10 @@
       "Bash(python -c \"from pymodbus.client import ModbusSerialClient; import inspect; print\\(inspect.signature\\(ModbusSerialClient.__init__\\)\\)\")",
       "Bash(python -c \"from pymodbus.client import ModbusSerialClient; import inspect; print\\('write_registers:', inspect.signature\\(ModbusSerialClient.write_registers\\)\\); print\\('read_holding_registers:', inspect.signature\\(ModbusSerialClient.read_holding_registers\\)\\); print\\('read_input_registers:', inspect.signature\\(ModbusSerialClient.read_input_registers\\)\\)\")",
       "Read(//d/JunjieWang/Scientific_research/Task-urdf/**)",
-      "Bash(python -c ' *)"
+      "Bash(python -c ' *)",
+      "Bash(pdftotext -layout \"d:/JunjieWang/Scientific_research/References-Robotiq/IMB-060213_20180226.pdf\" /tmp/gripper_pdf.txt)",
+      "Read(//tmp/**)",
+      "Read(//c/tmp/**)"
     ]
   }
 }

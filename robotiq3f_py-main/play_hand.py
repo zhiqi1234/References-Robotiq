@@ -1,98 +1,75 @@
 """
-Try putting your hand in the gripper — safe weak-force test.
+Robotiq 3F — Grasp/Release loop.
+ENTER=grasp, ENTER=release, ESC=quit.
 
 Usage:
     python play_hand.py
 """
 from robotiqcontrol.GripperController import GripperController
 import time
+import msvcrt
 
 
-def bar(value, max_val=255, width=20):
-    """Draw a simple progress bar."""
-    filled = int(value / max_val * width)
-    return "█" * filled + "░" * (width - filled)
+def wait_for_enter_or_esc():
+    """Wait for ENTER (return True) or ESC (return False)."""
+    print("  Press ENTER to continue, ESC to quit...")
+    while True:
+        if msvcrt.kbhit():
+            key = msvcrt.getch()
+            if key == b'\x1b':  # ESC
+                return False
+            if key in (b'\r', b'\n'):  # ENTER
+                return True
 
 
 def main():
     print("=" * 55)
-    print("  Robotiq 3F — Hand Demo")
-    print("  Safe mode: weak force, slow speed")
+    print("  Robotiq 3F — Grasp/Release Loop")
+    print("  ENTER=grasp  ENTER=release  ESC=quit")
     print("=" * 55)
 
-    g = GripperController(serial_port="COM8", unit_id=9)
+    g = GripperController(serial_port="COM3", unit_id=9)
 
-    # Activate
-    print("\n[1] Activating...")
-    g.activate()
-    for _ in range(20):
-        time.sleep(0.1)
-        g.status()
-        if g.gACT and g.gIMC == 3:
-            break
+    # Check status
+    print("\n[1] Checking gripper status...")
+    g.status()
+    print(f"  gACT={g.gACT}, gIMC={g.gIMC}, gMOD={g.gMOD}, Fault={g.FaultStatus}")
+    if not g.gACT:
+        print("  Gripper not activated! Run RUI initialization first.")
+        g.close()
+        return
 
-    # Open wide
-    print("[2] Opening wide...")
+    # Open wide to start
+    print("\n[2] Opening wide...")
     g.command_gripper(rPRA=0, rSP=80, rFR=30, rMOD="Basic")
     time.sleep(2)
 
-    input("\n[3] Put your hand in the gripper, then press ENTER...")
+    try:
+        while True:
+            # --- GRASP ---
+            print("\n" + "-" * 40)
+            if not wait_for_enter_or_esc():
+                break
+            print("  Closing (Force=1, Speed=10)...")
+            g.command_gripper(rPRA=220, rSP=10, rFR=1, rMOD="Basic")
+            time.sleep(3)
 
-    # Close — weak force, slow speed
-    print("\n[4] Closing gently (Force=8, Speed=25)...")
-    g.command_gripper(rPRA=220, rSP=25, rFR=8, rMOD="Basic")
+            g.status()
+            print(f"  Pos: A={g.FingerA_Position} B={g.FingerB_Position} C={g.FingerC_Position}")
 
-    contacted = []
-    last_pos = (0, 0, 0)
-    for i in range(60):
-        time.sleep(0.1)
-        g.status()
+            # --- RELEASE ---
+            print("-" * 40)
+            if not wait_for_enter_or_esc():
+                break
+            print("  Opening...")
+            g.command_gripper(rPRA=0, rSP=80, rFR=30, rMOD="Basic")
+            time.sleep(2)
 
-        cur = (g.FingerA_Position, g.FingerB_Position, g.FingerC_Position)
+    except KeyboardInterrupt:
+        pass
 
-        # Detect first contact
-        for name, det, pos in [("A", g.gDTA, cur[0]),
-                                ("B", g.gDTB, cur[1]),
-                                ("C", g.gDTC, cur[2])]:
-            if det == 2 and name not in contacted:
-                contacted.append(name)
-                print(f"\n  >>> Finger {name} touched you! (pos={pos}) <<<\n")
-
-        # Show progress bars
-        if cur != last_pos or any(d == 2 for d in [g.gDTA, g.gDTB, g.gDTC]):
-            print(f"  A [{bar(cur[0])}] {cur[0]:3d}  "
-                  f"B [{bar(cur[1])}] {cur[1]:3d}  "
-                  f"C [{bar(cur[2])}] {cur[2]:3d}  "
-                  f"| current: A={g.FingerA_Current:3d} B={g.FingerB_Current:3d} C={g.FingerC_Current:3d}")
-            last_pos = cur
-
-        if g.gSTA != 0:
-            break
-
-    # Result
-    print(f"\n{'='*55}")
-    print("  Result")
-    print(f"{'='*55}")
-    if contacted:
-        print(f"  Fingers that touched you: {', '.join(contacted)}")
-        print(f"  Final positions — A:{g.FingerA_Position}  B:{g.FingerB_Position}  C:{g.FingerC_Position}")
-        if len(contacted) == 3:
-            print("  All three fingers felt you! ✋")
-        elif len(contacted) == 2:
-            print("  Two fingers touched. Maybe your hand was tilted?")
-        elif len(contacted) == 1:
-            print("  Only one finger touched. Try centering your hand more.")
-    else:
-        print("  No contact detected — hand too thin? Try lowering Force further.")
-        print(f"  Final positions — A:{g.FingerA_Position}  B:{g.FingerB_Position}  C:{g.FingerC_Position}")
-
-    # Open to release
-    print("\n[5] Opening to release...")
-    g.command_gripper(rPRA=0, rSP=80, rFR=30, rMOD="Basic")
-    time.sleep(2)
-
+    print("\nDone.")
     g.close()
-    print("Done. Hope it tickled!")
 
 
 if __name__ == '__main__':
